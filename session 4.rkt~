@@ -1,0 +1,10 @@
+(define(return x) (tag 'done x))
+(define(bounce x) (tag 'doing x))
+(define(call x)
+(define(tag x)
+(define(tag-of car)
+(define(tag-value cdr)
+
+(define(tag label thunk) (cons label thunk))
+  
+(define(seesaw x)

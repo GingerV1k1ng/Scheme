@@ -1,0 +1,5 @@
+(define(pause duration))
+(define(note pitch duration instrument))
+(define(MusicElement note pause))
+(define(SequentialMusicElement MusicElement))
+(define(ParallelMusicElement MusicElement))
