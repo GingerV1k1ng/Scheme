@@ -52,6 +52,7 @@
       #t
       #f))
 
+;Makes a list of music elements in sequential order
 (define(sequentialMusicElement . listOfMusicElements)
   (cond
     ((find-in-list
@@ -60,6 +61,7 @@
      (error "List contains invalid music elements")))
   (list 'sequentialMusicElement listOfMusicElements))
 
+;Makes a list of music elements in parallel order
 (define(parallelMusicElement . listOfMusicElements)
   (cond
     ((find-in-list
@@ -79,85 +81,93 @@
       (eq? (car lst) 'parallelMusicElement)))
 
 ;Got help from Daniel Bolhuis with making of the scale, transposes and re-instrument functions
+;Scaling adds extra duration by multiplying the exsiting duration with the decided value
+;If sequential or parallel, it multiplies all the durations with the decided value, in the list.
 (define(scaling element val)
   (cond
-    ((pause? element) (pause (+(get-duration element) val)))
-    ((note? element) (note(get-pitch element) (*(get-duration element) val) (get-instrument element)))
-    ((sequentialMusicElement? element) (apply sequentialMusicElement(scale-helper(cadr element) val )))
-    ((parallelMusicElement? element) (apply parallelMusicElement(scale-helper(cadr element) val )))))
+    ((pause? element) (pause (+(getDuration element) val)))
+    ((note? element) (note(getPitch element) (*(getDuration element) val) (getInstrument element)))
+    ((sequentialMusicElement? element) (apply sequentialMusicElement(scaleHelper(cadr element) val )))
+    ((parallelMusicElement? element) (apply parallelMusicElement(scaleHelper(cadr element) val )))))
 
-(define(scale-helper element val)
+(define(scaleHelper element val)
   (if (null? element)
       '()
-      (cons (scaling (car element) val) (scale-helper(cdr element) val))))
+      (cons (scaling (car element) val) (scaleHelper(cdr element) val))))
 
+;Changes the pitch of a music element by adding the extra value, to excisting value
+;If it's a sequential or parallel, it adds the value to all the music elements in the list
 (define(transposes element val)
   (cond
     ((pause? element) (error "Can't change pitch on a pause"))
-    ((note? element) (note (+(get-pitch element) val) (get-duration element) (get-instrument element)))
-    ((sequentialMusicElement? element) (apply sequentialMusicElement(transposes-helper(cdr element) val)))
-    ((parallelMusicElement? element) (apply parallelMusicElement(transposes-helper(cadr element) val)))))
+    ((note? element) (note (+(getPitch element) val) (getDuration element) (getInstrument element)))
+    ((sequentialMusicElement? element) (apply sequentialMusicElement(transposesHelper(cdr element) val)))
+    ((parallelMusicElement? element) (apply parallelMusicElement(transposesHelper(cadr element) val)))))
 
-(define(transposes-helper element val)
+(define(transposesHelper element val)
   (if (null? element)
       '()
-      (cons (transposes (car element) val) (transposes-helper(cdr element) val))))
-    
-(define(re-instrument element instrument)
+      (cons (transposes (car element) val) (transposesHelper(cdr element) val))))
+
+;Changes the instrument of a specific music element.
+;If it is sequantial or parallel, it changes all the instruments to the new one, in the list.
+(define(reInstrument element instrument)
   (cond
     ((pause? element) (error "Can't change instrument on a pause"))
-    ((note? element) (note (get-pitch element) (get-duration element) instrument))
-    ((sequentialMusicElement? element) (apply sequentialMusicElement(instrument-helper(cadr element) instrument)))
-    ((parallelMusicElement? element) (apply parallelMusicElement(instrument-helper(cadr element) instrument)))))
+    ((note? element) (note (getPitch element) (getDuration element) instrument))
+    ((sequentialMusicElement? element) (apply sequentialMusicElement(instrumentHelper(cadr element) instrument)))
+    ((parallelMusicElement? element) (apply parallelMusicElement(instrumentHelper(cadr element) instrument)))))
 
-(define(instrument-helper element instrument)
+(define(instrumentHelper element instrument)
   (if (null? element)
       '()
-      (cons(re-instrument (car element) instrument) (instrument-helper(cdr element) instrument))))
-    
-(define(get-duration element)
+      (cons(reInstrument (car element) instrument) (instrumentHelper(cdr element) instrument))))
+
+;Gets the duration of a music element. If it's the sequential it gets the sum of the music element
+;If its parallel it takes the maximum duration of the whole music element
+(define(getDuration element)
   (cond
     ((pause? element) (cdr element))
     ((note? element) (car(cdddr element)))
-    ((sequentialMusicElement? element) (get-duration-sequential(cadr element)))
-    ((parallelMusicElement? element) (get-duration-parallel (cadr element)))))
+    ((sequentialMusicElement? element) (getDurationSequential(cadr element)))
+    ((parallelMusicElement? element) (getDurationParallel (cadr element)))))
     
-(define(get-instrument element)
+(define(getInstrument element)
   (if(note? element) (car(cdr element))))
 
-(define(get-pitch element)
+(define(getPitch element)
   (if (note? element) (car(cddr element))))
 
-(define(get-duration-sequential element)
+(define(getDurationSequential element)
   (if (null? element)
       0
-      (+ (get-duration (car element)) (get-duration-sequential(cdr element)))))
+      (+ (getDuration (car element)) (getDurationSequential(cdr element)))))
 
-(define(get-duration-parallel element)
+(define(getDurationParallel element)
   (if (null? element)
       0
-      (max (get-duration (car element)) (get-duration-parallel(cdr element)))))
+      (max (getDuration (car element)) (getDurationParallel(cdr element)))))
 
-(define(linearizes element time)
+;Linearizer, makes all music elements to one list. I use two helper functions, linearizer-helper for sequential and for parallel.
+;They appends the strings together and makes the recursion. To calculate the abselute time. 
+(define(linearizer element time)
   (cond
     ((pause? element) '() )
-    ((note? element) (note-abs-time-with-duration time (channelToInstrument(get-instrument element)) (get-pitch element) 88 (get-duration element))) 
-    ((sequentialMusicElement? element) (apply sequentialMusicElement(linearizes-helper-sequential(cadr element) time)))
-    ((parallelMusicElement? element)  )))
+    ((note? element) (list (note-abs-time-with-duration time (channelToInstrument(getInstrument element)) (getPitch element) 88 (getDuration element))))
+    ((sequentialMusicElement? element) (linearizerHelperSequential(cadr element) time))
+    ((parallelMusicElement? element) (linearizerHelperParallel(cadr element) time))))
 
-(define(linearizes-helper-sequential element time)
+(define(linearizerHelperSequential element time)
   (if (null? element)
       '()
-      (append (linearizes(car element) (+ (get-duration (car element)) time)) (linearizes-helper-sequential (cddr element) (+ (get-duration (cddr element)) time)))))
+      (append (linearizer(car element) time) (linearizerHelperSequential(cdr element) (+ time (getDuration(car element)))))))
 
-(define(sum element time)
-  (+ (get-duration element) time))
-
-(define(linearizes-helper-parallel element)
+(define(linearizerHelperParallel element time)
   (if (null? element)
       '()
-      (append)))
+      (append (linearizer(car element) time) (linearizerHelperParallel(cdr element) (max time (getDuration(car element)))))))
 
+;Converts a symbol to a number. Checks if the instrument is equal with the symbol, then returns a number.
 (define(channelToInstrument instrument)
   (cond
     ((eq? instrument 'piano) 1)
@@ -169,15 +179,12 @@
     ((eq? instrument 'helicopter) 7)
     ((eq? instrument 'telephone) 8)))
 
-(define(monophonic? element)
-  (cons
-   ((pause? element) )
-   ((node? element) )
-   ((seqentialMusicElement? element) )
-   ((parallelMusicElement? element) )))
-
 ;Definetions helping with coding
 (define p(pause 50))
-(define n(note 22 50 'Piano))
-(define sequentialLst(sequentialMusicElement n n n n n n n n n n n))
-(define parallelLst(parallelMusicElement n n n n n n n n n n n))
+(define n(note 22 50 'piano))
+(define sequentialLst(sequentialMusicElement n n n n n n))
+(define parallelLst(parallelMusicElement n n))
+
+;Does not work, I get an error in music-basis-r5rs.scm. If this line gets removed, it can compile.
+(transform-to-midi-file-and-write-to-file! (linearizer sequentialLst 0) "sodmusik.MIDI")
+
